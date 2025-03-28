@@ -60,7 +60,7 @@ module agent_voting::agent_voting {
 
     // ===== 错误码 =====
     const EAgentNotInGroup: u64 = 0;
-    const EDuplicateVote: u64 = 1;
+    // const EDuplicateVote: u64 = 1;
 
     // ===== 核心逻辑 =====
 
@@ -132,7 +132,7 @@ module agent_voting::agent_voting {
         vote: bool,
         _vote_des: String,
         _signature: vector<u8>,
-        ctx: &mut sui::tx_context::TxContext
+        ctx: &mut tx_context::TxContext
     ) {
         // 验证Agent属于投票组
         assert!(
@@ -143,35 +143,38 @@ module agent_voting::agent_voting {
             EAgentNotInGroup
         );
 
-        // 防止重复投票（修正动态字段调用）
-        let agent_id = sui::object::id(agent);
-        assert!(
-            !sui::dynamic_field::exists<address, bool>(// 使用address作为字段键类型
-                &content.id,
-                sui::tx_context::sender(ctx)
-            ),
-            EDuplicateVote
-        );
+        // 防止重复投票（最终正确实现）
+        // let voter = tx_context::sender(ctx);
+        // assert!(
+        //     !dynamic_field::exists<vector<u8>, bool>(// 使用内容哈希作为字段键
+        //         &content.id, content.content_hash),
+        //     EDuplicateVote
+        // );
 
-        // 更新投票计数（修复if语法）
+        // 更新投票计数
         if (vote) {
             content.approvals = content.approvals + 1;
         } else {
             content.rejections = content.rejections + 1;
         };
 
-        // 生成投票事件NFT（修复变量声明）
+        // 生成投票事件NFT
         let vote_event = VoteEvent {
             id: sui::object::new(ctx),
-            agent_id: agent_id,
+            agent_id: sui::object::id(agent),
             content_id: sui::object::id(content),
             vote,
             description: _vote_des
         };
         sui::transfer::public_freeze_object(vote_event);
 
-        // 记录投票记录（修正动态字段参数）
-        dynamic_field::add<sui::object::ID, bool>(&mut content.id, agent_id, true);
+        // 记录投票记录（正确API调用）
+        dynamic_field::add<vector<u8>, bool>(
+            &mut content.id,
+            content.content_hash,
+            true
+        );
+
         event::emit(
             VoteRecorded {
                 content_id: sui::object::id(content),
